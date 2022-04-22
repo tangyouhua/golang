@@ -12,7 +12,7 @@ func main() {
 	flag.Parse()
 	ts.debugOn(*debug)
 
-	err := ts.ListenAndServe(":80")
+	err := ts.ListenAndServe(":8080")
 	if err != nil {
 		log.Fatal(err)
 	}
