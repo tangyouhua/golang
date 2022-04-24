@@ -44,7 +44,7 @@ func setVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("VERSION", version)
 }
 
-func (ts *TinyServer) Println(v ...any) {
+func (ts *TinyServer) Println(v ...interface{}) {
 	if ts.debug {
 		log.Println(v)
 	}
