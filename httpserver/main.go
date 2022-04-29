@@ -1,32 +1,73 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
-	"strconv"
 )
 
+const VERSION = "VERSION"
+const X_REAL_IP = "X-Real-IP"
+const X_FORWARDED_FOR = "X-Forwarded-For"
+
 func main() {
-	ts := TinyServer{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", indexHandle)
+	mux.HandleFunc("/healthz", healthzHandle)
 
-	debug := flag.Bool("debug", false, "enable debug info")
-	flag.Parse()
-	ts.debugOn(*debug)
-
-	err := ts.ListenAndServe(port())
+	port := "80"
+	err := http.ListenAndServe(":"+port, mux)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Start HTTP server localhost:%s failed, error %s\n",
+			port, err.Error())
 	}
 }
 
-func port() string {
-	portstr := os.Getenv("TYH_SERVICE_PORT")
-	if portstr != "" {
-		_, err := strconv.ParseInt(portstr, 10, 64)
-		if err == nil {
-			return ":" + portstr
+// index handler: 127.0.0.0/
+func indexHandle(w http.ResponseWriter, r *http.Request) {
+	// Copy header to response
+	for key, values := range r.Header {
+		for _, value := range values {
+			fmt.Printf("Header key/value: [%s, %s]\n", key, value)
+			w.Header().Set(key, value)
 		}
 	}
-	return ":80"
+
+	// Set VERSION to header
+	version := os.Getenv(VERSION)
+	w.Header().Set(VERSION, version)
+	fmt.Printf("os VERSION: %s\n", version)
+
+	// Log client IP
+	clientIP := getRemoteIP(r)
+	code := http.StatusOK
+	w.WriteHeader(code)
+	log.Printf("Request client IP:%s, response code:%d", clientIP, code)
+}
+
+// Get remote IP code
+// Ref: https://juejin.cn/post/7026366595681386532
+func getRemoteIP(r *http.Request) string {
+	remoteAddr := r.RemoteAddr
+	if ip := r.Header.Get(X_REAL_IP); ip != "" {
+		remoteAddr = ip
+	} else if ip = r.Header.Get(X_FORWARDED_FOR); ip != "" {
+		remoteAddr = ip
+	} else {
+		remoteAddr, _, _ = net.SplitHostPort(remoteAddr)
+	}
+
+	if remoteAddr == "::1" {
+		remoteAddr = "127.0.0.1"
+	}
+
+	return remoteAddr
+}
+
+// health check: 127.0.0.0/healthz
+func healthzHandle(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "HTTP server is working.")
 }
