@@ -10,5 +10,5 @@
 ## 运行
 
 ```shell
-./httpserver-exercise.exe -debug
+make run
 ```
