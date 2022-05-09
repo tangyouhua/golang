@@ -17,6 +17,7 @@
 # 宿主机
 $ docker run -p 8080:80 -d tangyouhua/httpserver:v1.0 # 映射 httpserver 到本地 8080 端口
 $ curl localhost:8080/healthz #查看服务
+HTTP server is working.
 $ docker inspect <container id> -f '{{.State.Pid}}'
 9337
 $ sudo nsenter -n -t9937
