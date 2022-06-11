@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+   app: httpserver
+  name: httpserver-deployment1
+  namespace: httpserver
+spec:
+  ports:
+  - port: 9001
+    name: httpserver-service80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 31091
+  selector:
+    app: httpserver 
+  type: NodePort
+

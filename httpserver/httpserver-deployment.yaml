@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: httpserver
+  name: httpserver-deployment1
+  namespace: httpserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpserver
+  template:
+    metadata:
+      labels:
+        app: httpserver
+    spec:
+      containers:
+      - image: tangyouhua/httpserver:v1.0
+        ports:
+        - containerPort: 80
+        name: httpserver
+      tolerations:
+      - key: "key"
+        operator: "Equal"
+        value: "nginx"
+        effect: "NoSchedule"

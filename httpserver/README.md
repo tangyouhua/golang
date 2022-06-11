@@ -1,6 +1,106 @@
-# 练习：编写 HTTP 服务器，制作镜像
+# Homework
 
-## 要求
+## 练习8-1：编写 httpserver 部署脚本
+
+### 执行部署
+
+- 创建 namespace
+
+```shell
+kubectl create -f httpserver-namespace.yaml
+kubectl get namespaces
+
+root@k8smaster:~/httpserver# kubectl get namespaces
+NAME               STATUS   AGE
+calico-apiserver   Active   25h
+calico-system      Active   25h
+default            Active   25h
+httpserver         Active   9m50s
+kube-node-lease    Active   25h
+kube-public        Active   25h
+kube-system        Active   25h
+nginx              Active   37m
+tigera-operator    Active   25h
+```
+
+- 创建 Deployment
+
+```shell
+kubectl create -f httpserver-deployment.yaml 
+kubectl get pods -n httpserver
+
+NAME                                      READY   STATUS    RESTARTS   AGE
+httpserver-deployment1-66d67bb6bf-ncmhh   1/1     Running   0          9m8s
+```
+
+- 创建 service
+
+```shell
+kubectl create -f httpserver-service.yaml 
+kubectl get services -n httpserver
+
+NAME                     TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+httpserver-deployment1   NodePort   10.107.179.2   <none>        9001:31091/TCP   8m5s
+```
+
+查看 Service 信息
+
+```shell
+kubectl describe service httpserver-deployment1 -n httpserver
+
+Name:                     httpserver-deployment1
+Namespace:                httpserver
+Labels:                   app=httpserver
+Annotations:              <none>
+Selector:                 app=httpserver
+Type:                     NodePort
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.107.179.2
+IPs:                      10.107.179.2
+Port:                     httpserver-service80  9001/TCP
+TargetPort:               80/TCP
+NodePort:                 httpserver-service80  31091/TCP
+Endpoints:                192.168.249.44:80
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Events:                   <none>
+```
+
+### 验证结果
+
+```shell
+curl http://192.168.38.128:31091/healthz
+HTTP server is working.
+```
+
+**思考点**
+
+- 优雅启动
+- 优雅终止
+- 资源需求和 QoS 保证
+- 探活
+- 日常运维需求，日志等级
+- 配置和代码分离
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpserver-deployment
+  labels:
+    app: httpserver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: httpserver
+```
+
+
+## 练习1, 2：编写 HTTP 服务器，制作镜像
+
+### 要求
 
 1. 接收客户端 request，并将 request 中带的 header 写入 response header
 2. 读取当前系统的环境变量中的 VERSION 配置，并写入 response header
@@ -11,7 +111,7 @@
 7. 通过 docker 本地命令启动 httpserver
 8. 通过 nsenter 进入容器查看 IP 地址
 
-## 运行
+### 运行
 
 ```shell
 # 宿主机
@@ -32,7 +132,7 @@ root# ip addr
        valid_lft forever preferred_lft forever
 ```
 
-# 镜像
+## 镜像
 
 - golang 1.17 镜像：https://hub.docker.com/_/golang/
 - busybox 1.34 镜像：<https://hub.docker.com/_/busybox>
