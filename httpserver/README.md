@@ -83,20 +83,6 @@ HTTP server is working.
 - 日常运维需求，日志等级
 - 配置和代码分离
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: httpserver-deployment
-  labels:
-    app: httpserver
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: httpserver
-```
-
 
 ## 练习1, 2：编写 HTTP 服务器，制作镜像
 
