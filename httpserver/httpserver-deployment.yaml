@@ -31,10 +31,10 @@ spec:
         lifecycle:
           postStart:
             exec:
-              command: ["/bin/sh", "-c", "echo 'start' from the httpServer postStart handler > /usr/share/message"]
+              command: ["/bin/sh", "-c", "echo 'start' from the httpServer postStart handler"]
           preStop:
               exec:
-                command: ["/bin/sh", "-c", "echo 'end' from the httpServer preStop handler > /usr/share/message"]
+                command: ["/bin/sh", "-c", "echo 'end' from the httpServer preStop handler"]
         livenessProbe:
           httpGet:
             path: /healthz
