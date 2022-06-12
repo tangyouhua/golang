@@ -15,11 +15,19 @@ spec:
       labels:
         app: httpserver
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
       - image: tangyouhua/httpserver:v1.0
         ports:
         - containerPort: 80
         name: httpserver
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo 'start' from the httpServer postStart handler > /usr/share/message"]
+          preStop:
+              exec:
+                command: ["/bin/sh", "-c", "echo 'end' from the httpServer preStop handler > /usr/share/message"]
         livenessProbe:
           httpGet:
             path: /healthz
