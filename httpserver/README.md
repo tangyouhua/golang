@@ -79,10 +79,11 @@ HTTP server is working.
 - 优雅启动
 - 优雅终止
 - 资源需求和 QoS 保证
-- 探活
+- 探活：通过 [liveness HTTP request][1] 对 httpServer `/healthz` 接口探活；
 - 日常运维需求，日志等级
 - 配置和代码分离
 
+[1]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 
 ## 练习1, 2：编写 HTTP 服务器，制作镜像
 
