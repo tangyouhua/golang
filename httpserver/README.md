@@ -78,13 +78,15 @@ HTTP server is working.
 
 - 优雅启动：对启动有依赖项或者启动条件要求时，可采用 [postStart Container Hook][1] 或者配置 [Init Container][2] 提供支持。
 - 优雅终止：在退出容器时，需要进行后续处理，可采用 [preStop Container Hook][1] 提供支持。同时，为了确保 `preStop` 可能出现的挂起情况，使用 `terminationGracePeriodSeconds` 保证退出。
-- 资源需求和 QoS 保证
+- 资源需求和 QoS 保证：针对应用的具体情况，对 Pod 和 Container 资源进行管理，[为 memory, cpu 等资源指定 resources, requests, limits][3]。学习理解 [Guaranteed, Burstable, BestEffort 三个 QoS 等级的资源配置方法][4]。
 - 探活：通过 [liveness HTTP request][x] 对 httpServer `/healthz` 接口探活；
 - 日常运维需求，日志等级
 - 配置和代码分离
 
 [1]: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 [2]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-initialization/
+[3]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+[4]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 [x]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 
 ## 练习1, 2：编写 HTTP 服务器，制作镜像
