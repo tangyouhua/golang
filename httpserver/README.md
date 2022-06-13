@@ -2,76 +2,157 @@
 
 ## 练习8-1：编写 httpserver 部署脚本
 
-### 执行部署
+deploy.yaml, configmap.yaml
 
-- 创建 namespace
+### 部署脚本
 
-```shell
-kubectl create -f httpserver-namespace.yaml
-kubectl get namespaces
+- 建立部署 httpserver-deployment
+- 实例数：3
+- 设置 Rolling 策略
+- 配置实例模板
+  - 拉取 docker hub 上的镜像：tangyouhua/httpserver:v1.0
+  - 配置资源
+  - 通过 HTTP 80 端口 healthz API 实现探针
 
-root@k8smaster:~/httpserver# kubectl get namespaces
-NAME               STATUS   AGE
-calico-apiserver   Active   25h
-calico-system      Active   25h
-default            Active   25h
-httpserver         Active   9m50s
-kube-node-lease    Active   25h
-kube-public        Active   25h
-kube-system        Active   25h
-nginx              Active   37m
-tigera-operator    Active   25h
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: httpserver
+  name: httpserver-deployment
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: httpserver
+  strategy:
+    rollingUpdate:
+      maxSurge: 30%
+      maxUnavailable: 30%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: httpserver
+    spec:
+      containers:
+        - env:
+          - name: httpport
+            valueFrom:
+              configMapKeyRef:
+                key: httpport
+                name: httpserver-env
+          image: tangyouhua/httpserver:v1.0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: httpserver
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          terminationMessagePath: /dev/termination.log
+          terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      #imagePullSecrets:
+      #  - name: cloudnative
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 60
 ```
 
-- 创建 Deployment
+### configmap.yaml
 
-```shell
-kubectl create -f httpserver-deployment.yaml 
-kubectl get pods -n httpserver
+使用 ConfigMap 定义 httpserver 端口与日志级别。
 
-NAME                                      READY   STATUS    RESTARTS   AGE
-httpserver-deployment1-66d67bb6bf-ncmhh   1/1     Running   0          9m8s
+- 端口 80
+- 日志级别 warn
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpserver-env
+data:
+  httpport: "80"
+  loglevel: "warn"
 ```
 
-- 创建 service
+### 部署结果摘选
 
 ```shell
-kubectl create -f httpserver-service.yaml 
-kubectl get services -n httpserver
-
-NAME                     TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
-httpserver-deployment1   NodePort   10.107.179.2   <none>        9001:31091/TCP   8m5s
+Name:                   httpserver-deployment
+Labels:                 app=httpserver
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app=httpserver
+Replicas:               3 desired | 3 updated | 3 total | 3 available | 0 unavailable
+StrategyType:           RollingUpdate
+RollingUpdateStrategy:  30% max unavailable, 30% max surge
+Pod Template: ...
 ```
 
-查看 Service 信息
+### Pod 信息摘选
 
 ```shell
-kubectl describe service httpserver-deployment1 -n httpserver
-
-Name:                     httpserver-deployment1
-Namespace:                httpserver
-Labels:                   app=httpserver
-Annotations:              <none>
-Selector:                 app=httpserver
-Type:                     NodePort
-IP Family Policy:         SingleStack
-IP Families:              IPv4
-IP:                       10.107.179.2
-IPs:                      10.107.179.2
-Port:                     httpserver-service80  9001/TCP
-TargetPort:               80/TCP
-NodePort:                 httpserver-service80  31091/TCP
-Endpoints:                192.168.249.44:80
-Session Affinity:         None
-External Traffic Policy:  Cluster
-Events:                   <none>
-```
-
-### 验证结果
-
-```shell
-curl http://192.168.38.128:31091/healthz
-HTTP server is working.
+Name:         httpserver-deployment-64c8fd9f54-c5s56
+Labels:       app=httpserver
+              pod-template-hash=64c8fd9f54
+Containers:
+  httpserver:
+    Image:          tangyouhua/httpserver:v1.0
+    Limits:
+      cpu:     500m
+      memory:  500Mi
+    Requests:
+      cpu:      50m
+      memory:   100Mi
+    Liveness:   http-get http://:80/healthz delay=5s timeout=1s period=10s #success=1 #failure=3
+    Readiness:  http-get http://:80/healthz delay=5s timeout=1s period=10s #success=1 #failure=3
+    Environment:
+      httpport:  <set to the key 'httpport' of config map 'httpserver-env'>  Optional: false
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-6688g (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+QoS Class:                   Burstable
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  16m   default-scheduler  Successfully assigned default/httpserver-deployment-64c8fd9f54-c5s56 to k8snode1
+  Normal  Pulled     15m   kubelet            Container image "tangyouhua/httpserver:v1.0" already present on machine
+  Normal  Created    15m   kubelet            Created container httpserver
+  Normal  Started    15m   kubelet            Started container httpserver
 ```
 
 **思考点**
@@ -79,15 +160,16 @@ HTTP server is working.
 - 优雅启动：对启动有依赖项或者启动条件要求时，可采用 [postStart Container Hook][1] 或者配置 [Init Container][2] 提供支持。
 - 优雅终止：在退出容器时，需要进行后续处理，可采用 [preStop Container Hook][1] 提供支持。同时，为了确保 `preStop` 可能出现的挂起情况，使用 `terminationGracePeriodSeconds` 保证退出。
 - 资源需求和 QoS 保证：针对应用的具体情况，对 Pod 和 Container 资源进行管理，[为 memory, cpu 等资源指定 resources, requests, limits][3]。学习理解 [Guaranteed, Burstable, BestEffort 三个 QoS 等级的资源配置方法][4]。
-- 探活：通过 [liveness HTTP request][x] 对 httpServer `/healthz` 接口探活。
-- 日常运维需求，日志等级
-- 配置和代码分离
+- 探活：通过 [liveness HTTP request][5] 对 httpServer `/healthz` 接口探活。
+- 日常运维需求，日志等级：配置日志等级参数。
+- 配置和代码分离：使用 [configmap][6]。
 
 [1]: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
 [2]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-initialization/
 [3]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 [4]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-[x]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+[5]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+[6]: https://kubernetes.io/docs/concepts/configuration/configmap/
 
 ## 练习1, 2：编写 HTTP 服务器，制作镜像
 

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpserver-env
+data:
+  httpport: "80"
+  loglevel: "warn"
