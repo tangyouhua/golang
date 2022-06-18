@@ -1,5 +1,166 @@
 # Homework
 
+## 练习8-2：用 Service, Ingress 发布服务
+
+### 编写 Service 脚本
+
+service.yaml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: httpserver
+  name: httpsvc
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: httpserver
+  type: ClusterIP
+```
+
+发布
+
+```shell
+$kubectl get svc
+NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+cm-acme-http-solver-h76gd   NodePort    10.102.79.219   <none>        8089:31867/TCP   123m
+httpsvc                     ClusterIP   10.104.62.222   <none>        80/TCP           17s
+kubernetes                  ClusterIP   10.96.0.1       <none>        443/TCP          5h49m
+
+$curl 10.104.62.222/healthz
+HTTP server is working.
+```
+
+### 通过 Ingress 发布服务
+
+**按照下列步骤发布遇到问题，正在解决中**
+
+ <font color="red">**问题1**：EXTERNAL-IP 处于 **\<pending\>**。</font>
+
+<font color="red">**问题2**：message: Issuing certificate as Secret does not exist。</font>
+
+#### 1) 使用 helm 安装 nginx-ingress 成功
+
+```shell
+$kubectl get pod -n ingress
+NAME                                       READY   STATUS    RESTARTS   AGE
+ingress-nginx-controller-5756658855-wjlb8   1/1     Running   0          4h40m
+
+$kubectl get svc -n ingress
+NAME                                 TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             LoadBalancer   10.109.75.86   <pending>     80:31603/TCP,443:32367/TCP   4h41m
+ingress-nginx-controller-admission   ClusterIP      10.96.86.230   <none>        443/TCP                      4h41m
+```
+
+ <font color="red">**问题**：EXTERNAL-IP 处于 **\<pending\>**。</font>
+
+#### 2) 配置证书
+
+**issuer.yaml**
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  generation: 1
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: tangyouhua@gmail.com
+    preferredChain: ""
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+```
+
+应用
+
+```shell
+$kubectl create -f issuer.yaml
+issuer.cert-manager.io/letsencrypt-prod created
+
+$kubectl get issuer
+NAME               READY   AGE
+letsencrypt-prod   True    12s
+
+$kubectl describe issuer letsencrypt-prod
+...
+Message:               The ACME account was registered with the ACME server
+    Observed Generation:   1
+    Reason:                ACMEAccountRegistered
+    Status:                True
+    Type:                  Ready
+```
+
+**ingress.yaml**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/issuer: letsencrypt-prod
+  name: httpserver
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: httpserver.51.cafe
+      http:
+        paths:
+          - backend:
+              service:
+                name: httpsvc
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - httpserver.51.cafe
+      secretName: httpserver
+```
+
+应用
+
+```shell
+$kubectl create -f ingress.yaml
+ingress.networking.k8s.io/httpserver created
+
+$kubectl get ingress
+NAME                        CLASS    HOSTS                ADDRESS   PORTS     AGE
+cm-acme-http-solver-49vwc   <none>   httpserver.51.cafe             80        11s
+httpserver                  nginx    httpserver.51.cafe             80, 443   15s
+
+$kubectl get cert httpserver -oyaml
+...
+status:
+  conditions:
+  - lastTransitionTime: "2022-06-18T13:57:59Z"
+    message: Issuing certificate as Secret does not exist
+    observedGeneration: 1
+    reason: DoesNotExist
+    status: "True"
+    type: Issuing
+  - lastTransitionTime: "2022-06-18T13:57:59Z"
+    message: Issuing certificate as Secret does not exist
+    observedGeneration: 1
+    reason: DoesNotExist
+    status: "False"
+    type: Ready
+  nextPrivateKeySecretName: httpserver-stgcr
+```
+
+<font color="red">**问题**：message: Issuing certificate as Secret does not exist。</font>
+
 ## 练习8-1：编写 httpserver 部署脚本
 
 deploy.yaml, configmap.yaml
