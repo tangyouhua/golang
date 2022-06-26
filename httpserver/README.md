@@ -33,10 +33,54 @@ func delayHandle(w http.ResponseWriter) {
 更新 deployment
 
 ```shell
-kubectl apply -f deployment-delay.yaml
+$kubectl apply -f deployment-delay.yaml
 ```
 
+通过探活接口验证延时
 
+```shell
+$curl 10.101.69.244:8080/healthz
+```
+
+### Prometheus
+
+#### 搭建 Prometheus
+
+参考[在Kubernetes下部署Prometheus](https://www.prometheus.wang/kubernetes/deploy-prometheus-in-kubernetes.html)完成搭建：
+
+![](images/prometheus.png)
+
+#### 增加 metrics 相关配置
+
+参考[示例 httpserver yaml](https://github.com/cncamp/101/blob/master/module10/httpserver/httpserver.yaml) 修改 deployment-delay.yaml，删除 liveness 检查。
+
+```yaml
+...
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+    ...
+    spec:
+      containers:
+        - env:
+          ...
+          image: tangyouhua/httpserver:v1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 80
+```
+
+更新 deployment
+
+```shell
+$kubectl apply -f deployment-delay.yaml
+```
+
+#### 在 Prometheus 中查看 httpserver 服务
+
+![](./images/httpsvc.png)
 
 ## 练习8-2：用 Service, Ingress 发布服务
 
