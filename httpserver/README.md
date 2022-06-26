@@ -1,5 +1,43 @@
 # Homework
 
+## 练习10-2：模拟请求 httpserver 服务延时，通过 Prometheus 监控并查询延时指标
+
+### 更新 httpserver 模拟请求延时
+
+在 httpserver 的 handle 请求返回时随机增加 0 ~ 2 秒的延时。
+
+```go
+// Module10: mockup delay 0-2s
+func delayHandle(w http.ResponseWriter) {
+	rand.Seed(time.Now().Unix())
+	delay := rand.Intn(3)
+	time.Sleep(time.Duration(delay) * time.Second)
+}
+```
+
+重新制作镜像 httpserver:v1.1，推送镜像仓库。
+
+### 更新 httpserver 服务
+
+拷贝 deployment.yaml 并修改 deployment-delay.yaml
+
+```yml
+...
+   spec:
+      containers:
+        - env:
+          ...
+          image: tangyouhua/httpserver:v1.1 #更新为v1.1镜像
+```
+
+更新 deployment
+
+```shell
+kubectl apply -f deployment-delay.yaml
+```
+
+
+
 ## 练习8-2：用 Service, Ingress 发布服务
 
 ### 编写 Service 脚本

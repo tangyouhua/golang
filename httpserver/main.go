@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
+	"time"
 )
 
 const VERSION = "VERSION"
@@ -40,11 +42,21 @@ func indexHandle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(VERSION, version)
 	fmt.Printf("os VERSION: %s\n", version)
 
+	delayHandle(w)
+
 	// Log client IP
 	clientIP := getRemoteIP(r)
 	code := http.StatusOK
 	w.WriteHeader(code)
 	log.Printf("Request client IP:%s, response code:%d", clientIP, code)
+}
+
+// Module10: mockup delay 0-2s
+func delayHandle(w http.ResponseWriter) {
+	rand.Seed(time.Now().Unix())
+	delay := rand.Intn(3)
+	time.Sleep(time.Duration(delay) * time.Second)
+	// fmt.Fprintln(w, fmt.Sprintf("Delay %d seconds", delay))
 }
 
 // Get remote IP code
@@ -68,6 +80,7 @@ func getRemoteIP(r *http.Request) string {
 
 // health check: 127.0.0.0/healthz
 func healthzHandle(w http.ResponseWriter, _ *http.Request) {
+	delayHandle(w)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "HTTP server is working.")
 }
