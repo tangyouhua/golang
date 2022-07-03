@@ -1,5 +1,221 @@
 # Homework
 
+## 练习12：以 Istio Ingress Gateway 的形式发布 httpserver 服务
+
+> 需要考虑的几点：
+>
+> - 如何实现安全保证；
+> - 七层路由规则；
+> - 考虑 open tracing 的接入。
+
+### 部署 httpserver v1.0
+
+```shell
+kubectl create -f configmap.yaml
+kubectl create -f deployment.yaml
+kubectl create -f service.yaml
+```
+
+部署成功后，查看服务
+
+```shell
+$kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+httpsvc      ClusterIP   10.108.244.111   <none>        8080/TCP   11s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP    38m
+
+$curl 10.108.244.111:8080/healthz
+HTTP server is working.
+```
+
+### 下载安装 Istio
+
+```shell
+wget https://github.com/istio/istio/releases/download/1.14.1/istio-1.14.1-linux-amd64.tar.gz
+tar xzvf istio-1.14.1-linux-amd64.tar.gz
+```
+
+添加解压后的路径到 PATH
+
+```shell
+export PATH=$PATH:{istio_path}/bin
+```
+
+安装 istio，Ingress gateway
+
+```shell
+$istioctl install
+This will install the Istio 1.14.1 default profile with ["Istio core" "Istiod" "Ingress gateways"] components into the cluster. Proceed? (y/N) y
+✔ Istio core installed
+✔ Istiod installed
+✔ Ingress gateways installed
+✔ Installation complete  
+```
+
+查看 default namespace 可以看到 istio-system。
+
+查看 istio-system namespace 下的 pod，可以看到 istiod 与 istio-ingressgateway pod。
+
+```shell
+$kubectl get ns
+NAME               STATUS   AGE
+calico-apiserver   Active   33m
+calico-system      Active   46m
+default            Active   63m
+istio-system       Active   6m46s
+kube-node-lease    Active   63m
+kube-public        Active   63m
+kube-system        Active   63m
+tigera-operator    Active   46m
+
+$kubectl get pod -n istio-system
+NAME                                   READY   STATUS    RESTARTS   AGE
+istio-ingressgateway-778f44479-gmlt9   1/1     Running   0          6m55s
+istiod-6d67d84bc7-xzxbt                1/1     Running   0          8m25s
+```
+
+### 配置 Envoy Proxy 注入
+
+为 default namespace 添加 Label
+
+```shell
+$kubectl label namespace default istio-injection=enabled
+$kubectl get ns default --show-labels
+NAME      STATUS   AGE   LABELS
+default   Active   77m   istio-injection=enabled,kubernetes.io/metadata.name=default
+```
+
+删除 deployment，重新部署，查看 Pod 状态
+
+```shell
+$kubectl delete -f deployment.yaml
+$kubectl create -f deployment.yaml
+$kubectl get pod
+NAME                                     READY   STATUS    RESTARTS   AGE
+httpserver-deployment-64c8fd9f54-brfs7   2/2     Running   0          48s
+httpserver-deployment-64c8fd9f54-t2g64   2/2     Running   0          48s
+```
+
+可以看到 httpserver 创建了 2/2 个 pod。
+
+```shell
+$kubectl describe pod httpserver-deployment-64c8fd9f54-brfs7
+...
+Init Containers:
+  istio-init:
+    Container ID:  docker://ec349a796f692f895e92aedd3a88a44e899e277931e8fd6cc66410e6d6771767
+    Image:         docker.io/istio/proxyv2:1.14.1
+    Image ID:      docker-pullable://istio/proxyv2@sha256:df69c1a7af7c0113424a48f5075ac6d0894123ec926fdb315e849b4f04e39616
+```
+
+查看 pod 详细信息，可以看到 Container Image 为 istio proxy，注入完成。
+
+### 配置 Ingress Gateway 转发
+
+编写 istio-specs.yaml
+
+```yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpserver
+spec:
+  gateways:
+    - httpserver 
+  hosts:
+    - httpserver.cncamp.io
+  http:
+    - match:
+        - port: 80
+      route:
+        - destination:
+            host: httpserver.httpserver.svc.cluster.local
+            port:
+              number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: httpserver 
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - hosts:
+        - httpserver.cncamp.io
+      port:
+        name: http-httpserver
+        number: 80
+        protocol: HTTP
+```
+
+编写 vs-pathrouting.yaml
+
+```yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpserver
+spec:
+  gateways:
+    - httpserver
+  hosts:
+    - httpserver.cncamp.io
+  http:
+    - match:
+        - port: 80
+      route:
+        - destination:
+            host: httpserver.httpserver.svc.cluster.local
+            port:
+              number: 80
+```
+
+修改 service.yaml，name 改为 httpserver。
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: httpserver
+  name: httpserver
+spec:
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: httpserver
+```
+
+执行：
+
+```shell
+kubectl delete -f service.yaml
+kubectl create -f service.yaml
+kubectl create -f istio-specs.yaml
+kubectl create -f vs-pathrouting.yaml
+```
+
+测试结果：
+
+```shell
+$kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+httpserver   ClusterIP   10.104.243.158   <none>        8080/TCP   17s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP    124m
+
+$export INGRESS_IP=10.104.243.158
+curl -H "Host: httpserver.cncamp.io" $INGRESS_IP/healthz -v
+*   Trying 10.104.243.158:80...
+* TCP_NODELAY set
+
+```
+
+ <font color="red">**问题**：卡在等待中没有反馈，待解决。</font>
+
 ## 练习10-2：模拟请求 httpserver 服务延时，通过 Prometheus 监控并查询延时指标
 
 ### 更新 httpserver 模拟请求延时

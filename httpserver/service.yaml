@@ -3,12 +3,12 @@ kind: Service
 metadata:
   labels:
     app: httpserver
-  name: httpsvc
+  name: httpserver
 spec:
   ports:
-    - port: 8080
+    - name: http
+      port: 8080
       protocol: TCP
       targetPort: 80
   selector:
     app: httpserver
-  type: ClusterIP
